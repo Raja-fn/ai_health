@@ -196,7 +196,7 @@ class FormRepository {
         'dietary_preference': profileData.questions[7].selectedAnswer,
         'avg_sleep_duration': profileData.questions[8].selectedAnswer,
         'medical_conditions':
-            profileData.questions[10].selectedAnswer?.split(',') ?? [],
+            profileData.questions[9].selectedAnswer?.split(',') ?? [],
         'completed_at': DateTime.now().toIso8601String(),
       };
 
