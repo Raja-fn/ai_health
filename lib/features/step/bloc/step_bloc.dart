@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:ai_health/main.dart';
@@ -23,33 +24,39 @@ class StepBloc extends Bloc<StepEvent, StepState> {
       final now = DateTime.now();
       final startDate = now.subtract(Duration(days: event.days));
 
-      final records = await healthConnector.readRecords(
-        ReadRecordsInTimeRangeRequest(
-          dataType: HealthDataType.steps,
-          startTime: startDate,
-          endTime: now,
-        ),
-      );
+      List<StepsRecord> records = [];
+      try {
+        final _records = await healthConnector.readRecords(
+          ReadRecordsInTimeRangeRequest(
+            dataType: HealthDataType.steps,
+            startTime: startDate,
+            endTime: now,
+          ),
+        );
+        records = _records.records;
+
+        print('StepBloc: Found ${records.length} step records');
+        emit(StepLoaded(stepData: records));
+      } catch (e) {
+        print('StepBloc: Error reading step records: $e');
+        emit(StepError(message: e.toString()));
+        return;
+      }
 
       final Map<DateTime, int> dailySteps = {};
 
-      for (var record in records.records) {
-        final date = DateTime(
-          record.startTime.year,
-          record.startTime.month,
-          record.startTime.day,
-        );
-        dailySteps[date] = (dailySteps[date] ?? 0) + record.count;
+      for (var record in records) {
+        final date = DateTime(startDate.year, startDate.month, startDate.day);
+        print(record.count);
+        dailySteps[date] =
+            ((dailySteps[date] ?? 0) + double.parse(record.count.toString()))
+                .toInt();
       }
 
-      final stepData = dailySteps.entries.map((entry) {
-        return StepModel(date: entry.key, steps: entry.value);
-      }).toList();
+      records.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      stepData.sort((a, b) => a.date.compareTo(b.date));
-
-      developer.log('StepBloc: Loaded ${stepData.length} days of step data');
-      emit(StepLoaded(stepData: stepData));
+      developer.log('StepBloc: Loaded ${records.length} days of step data');
+      emit(StepLoaded(stepData: records));
     } catch (e) {
       developer.log('StepBloc: Error loading step data: $e', error: e);
       emit(StepError(message: e.toString()));

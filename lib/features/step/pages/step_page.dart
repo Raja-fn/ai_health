@@ -1,7 +1,8 @@
-import 'package:ai_health/features/step/bloc/step_bloc.dart';
+import 'package:ai_health/features/step/bloc/step_bloc.dart' as step_bloc;
 import 'package:ai_health/features/step/models/step_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:health_connector/health_connector.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -12,14 +13,14 @@ class StepPage extends StatefulWidget {
 }
 
 class _StepPageState extends State<StepPage> {
-  late StepBloc _stepBloc;
+  late step_bloc.StepBloc _stepBloc;
   int _selectedDays = 7;
 
   @override
   void initState() {
     super.initState();
-    _stepBloc = context.read<StepBloc>();
-    _stepBloc.add(LoadStepDataEvent(days: _selectedDays));
+    _stepBloc = context.read<step_bloc.StepBloc>();
+    _stepBloc.add(step_bloc.LoadStepDataEvent(days: _selectedDays));
   }
 
   @override
@@ -41,12 +42,13 @@ class _StepPageState extends State<StepPage> {
             colors: [Colors.white, Colors.blue.shade50],
           ),
         ),
-        child: BlocBuilder<StepBloc, StepState>(
+        child: BlocBuilder<step_bloc.StepBloc, step_bloc.StepState>(
           builder: (context, state) {
-            if (state is StepLoading) {
+            print(state);
+            if (state is step_bloc.StepLoading) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (state is StepLoaded) {
+            if (state is step_bloc.StepLoaded) {
               return _buildDashboard(state.stepData);
             }
             return const Center(child: Text('Failed to load step data'));
@@ -56,7 +58,7 @@ class _StepPageState extends State<StepPage> {
     );
   }
 
-  Widget _buildDashboard(List<StepModel> stepData) {
+  Widget _buildDashboard(List<StepsRecord> stepData) {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -73,15 +75,18 @@ class _StepPageState extends State<StepPage> {
   }
 
   Widget _buildDaysSelector() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildDaysButton(7),
-        const SizedBox(width: 16),
-        _buildDaysButton(30),
-        const SizedBox(width: 16),
-        _buildDaysButton(90),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildDaysButton(7),
+          const SizedBox(width: 16),
+          _buildDaysButton(30),
+          const SizedBox(width: 16),
+          _buildDaysButton(90),
+        ],
+      ),
     );
   }
 
@@ -92,20 +97,19 @@ class _StepPageState extends State<StepPage> {
         setState(() {
           _selectedDays = days;
         });
-        _stepBloc.add(LoadStepDataEvent(days: _selectedDays));
+        _stepBloc.add(step_bloc.LoadStepDataEvent(days: _selectedDays));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: isSelected ? Colors.blue.shade600 : Colors.white,
         foregroundColor: isSelected ? Colors.white : Colors.blue.shade600,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       child: Text('$days Days'),
     );
   }
 
-  Widget _buildChart(List<StepModel> stepData) {
+  Widget _buildChart(List<StepsRecord> stepData) {
+    print(double.parse(stepData[0].count.toString()).toInt());
     return SizedBox(
       height: 300,
       child: SfCartesianChart(
@@ -118,11 +122,12 @@ class _StepPageState extends State<StepPage> {
           majorGridLines: const MajorGridLines(width: 0.5),
           numberFormat: NumberFormat.compact(),
         ),
-        series: <ChartSeries>[
-          ColumnSeries<StepModel, DateTime>(
+        series: [
+          ColumnSeries<StepsRecord, DateTime>(
             dataSource: stepData,
-            xValueMapper: (StepModel data, _) => data.date,
-            yValueMapper: (StepModel data, _) => data.steps,
+            xValueMapper: (StepsRecord data, _) => data.startTime,
+            yValueMapper: (StepsRecord data, _) =>
+                double.parse(data.count.toString()).toInt(),
             color: Colors.blue.shade400,
             borderRadius: const BorderRadius.all(Radius.circular(8)),
           ),
