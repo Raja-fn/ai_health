@@ -71,13 +71,38 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadDashboardData() async {
+    // Helper to safely fetch data or return a default value
+    Future<T> safeFetch<T>(Future<T> future, T defaultValue) async {
+      try {
+        return await future;
+      } catch (e) {
+        developer.log("Error fetching dashboard data part: $e", error: e);
+        return defaultValue;
+      }
+    }
+
     try {
-      // Fetch data for the last 7 days
-      final stepsFuture = _stepRepository.getDailySteps(7);
-      final sleepFuture = _sleepRepository.getSleepHistory();
-      final vitalsFuture = _vitalsRepository.getVitalsHistory();
-      final hydrationFuture = _hydrationRepository.getHydrationHistory(7);
-      final workoutFuture = _workoutRepository.getWorkoutHistory();
+      // Fetch data for the last 7 days independently but in parallel
+      final stepsFuture = safeFetch<List<DailySteps>>(
+        _stepRepository.getDailySteps(7),
+        [],
+      );
+      final sleepFuture = safeFetch<List<SleepData>>(
+        _sleepRepository.getSleepHistory(),
+        [],
+      );
+      final vitalsFuture = safeFetch<List<VitalData>>(
+        _vitalsRepository.getVitalsHistory(),
+        [],
+      );
+      final hydrationFuture = safeFetch<List<DailyHydration>>(
+        _hydrationRepository.getHydrationHistory(7),
+        [],
+      );
+      final workoutFuture = safeFetch<List<WorkoutData>>(
+        _workoutRepository.getWorkoutHistory(),
+        [],
+      );
 
       final results = await Future.wait([
         stepsFuture,
@@ -94,27 +119,27 @@ class _HomePageState extends State<HomePage> {
           final cutoff = DateTime.now().subtract(const Duration(days: 7));
 
           // Sleep
-          final sleepHistory = results[1] as List<SleepData>;
+          final sleep = results[1] as List<SleepData>;
           _weeklySleep =
-              sleepHistory.where((s) => s.date.isAfter(cutoff)).toList()
+              sleep.where((s) => s.date.isAfter(cutoff)).toList()
                 ..sort((a, b) => a.date.compareTo(b.date));
 
           // Vitals
-          final vitalsHistory = results[2] as List<VitalData>;
+          final vitals = results[2] as List<VitalData>;
           _weeklyVitals =
-              vitalsHistory.where((v) => v.date.isAfter(cutoff)).toList()
+              vitals.where((v) => v.date.isAfter(cutoff)).toList()
                 ..sort((a, b) => a.date.compareTo(b.date));
 
           // Hydration
-          final hydrationHistory = results[3] as List<DailyHydration>;
+          final hydration = results[3] as List<DailyHydration>;
           _weeklyHydration =
-              hydrationHistory.where((h) => h.date.isAfter(cutoff)).toList()
+              hydration.where((h) => h.date.isAfter(cutoff)).toList()
                 ..sort((a, b) => a.date.compareTo(b.date));
 
           // Workouts
-          final workoutHistory = results[4] as List<WorkoutData>;
+          final workouts = results[4] as List<WorkoutData>;
           _weeklyWorkouts =
-              workoutHistory.where((w) => w.date.isAfter(cutoff)).toList()
+              workouts.where((w) => w.date.isAfter(cutoff)).toList()
                 ..sort((a, b) => a.date.compareTo(b.date));
 
           _isLoadingDashboard = false;

@@ -3,6 +3,7 @@ import 'package:ai_health/features/workouts/models/workout_data.dart';
 import 'package:ai_health/features/workouts/repo/workout_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:health_connector/health_connector.dart';
 import 'package:intl/intl.dart';
 import 'package:ai_health/main.dart';
 
@@ -34,18 +35,44 @@ class _WorkoutsViewState extends State<_WorkoutsView> {
   final TextEditingController _durationController = TextEditingController();
   final TextEditingController _caloriesController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
-  String _type = 'Running';
+  String? _type;
 
-  final List<String> _types = [
-    'Running',
-    'Walking',
-    'Cycling',
-    'Gym',
-    'Yoga',
-    'Swimming',
-    'HIIT',
-    'Other',
-  ];
+  late final List<String> _types;
+
+  @override
+  void initState() {
+    super.initState();
+    _types = _getExerciseTypes();
+    _type = _types.contains('Running') ? 'Running' : _types.first;
+  }
+
+  List<String> _getExerciseTypes() {
+    final types = ExerciseType.values
+        .where((e) => e != ExerciseType.unknown)
+        .map((e) => _formatExerciseType(e))
+        .toList();
+    types.sort();
+    return types;
+  }
+
+  String _formatExerciseType(ExerciseType type) {
+    // Convert enum name to Title Case with spaces
+    // e.g. highIntensityIntervalTraining -> High Intensity Interval Training
+    final name = type.toString().split('.').last;
+    final buffer = StringBuffer();
+    for (int i = 0; i < name.length; i++) {
+      final char = name[i];
+      if (i > 0 && char.toUpperCase() == char && char.toLowerCase() != char) {
+        buffer.write(' ');
+      }
+      if (i == 0) {
+        buffer.write(char.toUpperCase());
+      } else {
+        buffer.write(char);
+      }
+    }
+    return buffer.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +162,7 @@ class _WorkoutsViewState extends State<_WorkoutsView> {
 
                         final data = WorkoutData(
                           date: DateTime.now(),
-                          type: _type,
+                          type: _type ?? 'Other',
                           durationMinutes:
                               int.tryParse(_durationController.text) ?? 0,
                           caloriesBurned:
@@ -206,28 +233,25 @@ class _WorkoutsViewState extends State<_WorkoutsView> {
   }
 
   Widget _getIcon(String type) {
+    // Basic mapping for common types, default for others
     IconData icon;
-    switch (type) {
-      case 'Running':
-        icon = Icons.directions_run;
-        break;
-      case 'Walking':
-        icon = Icons.directions_walk;
-        break;
-      case 'Cycling':
-        icon = Icons.directions_bike;
-        break;
-      case 'Swimming':
-        icon = Icons.pool;
-        break;
-      case 'Gym':
-        icon = Icons.fitness_center;
-        break;
-      case 'Yoga':
-        icon = Icons.self_improvement;
-        break;
-      default:
-        icon = Icons.sports_gymnastics;
+    final t = type.toLowerCase();
+    if (t.contains('run')) {
+      icon = Icons.directions_run;
+    } else if (t.contains('walk')) {
+      icon = Icons.directions_walk;
+    } else if (t.contains('cycle') || t.contains('bike')) {
+      icon = Icons.directions_bike;
+    } else if (t.contains('swim') || t.contains('pool')) {
+      icon = Icons.pool;
+    } else if (t.contains('gym') || t.contains('strength')) {
+      icon = Icons.fitness_center;
+    } else if (t.contains('yoga')) {
+      icon = Icons.self_improvement;
+    } else if (t.contains('hiit') || t.contains('interval')) {
+      icon = Icons.timer;
+    } else {
+      icon = Icons.sports_gymnastics;
     }
     return Icon(icon, color: Colors.blue);
   }
