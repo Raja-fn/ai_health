@@ -12,7 +12,7 @@ class StepInitial extends StepState {}
 class StepLoading extends StepState {}
 
 class StepLoaded extends StepState {
-  final List<StepModel> stepData;
+  final List<StepsRecord> stepData;
 
   const StepLoaded({required this.stepData});
 
