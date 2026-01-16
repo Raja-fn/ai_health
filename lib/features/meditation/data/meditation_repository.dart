@@ -1,8 +1,15 @@
+import 'package:health_connector/health_connector.dart';
+import 'package:health_connector/health_connector_internal.dart';
 import 'package:ai_health/features/meditation/data/meditation_item.dart';
 
 class MeditationRepository {
+  final HealthConnector _healthConnector;
+
+  MeditationRepository({required HealthConnector healthConnector})
+      : _healthConnector = healthConnector;
+
   Future<List<MeditationItem>> getItems() async {
-    // Return dummy data
+    // Return dummy data for content
     return const [
       // Tutorials
       MeditationItem(
@@ -43,5 +50,48 @@ class MeditationRepository {
         isTutorial: false,
       ),
     ];
+  }
+
+  Future<void> saveMeditationSession(DateTime startTime, DateTime endTime, String title) async {
+    try {
+      final record = MindfulnessSessionRecord(
+        startTime: startTime,
+        endTime: endTime,
+        metadata: Metadata.manualEntry(),
+        notes: title,
+        title: title,
+      );
+      await _healthConnector.writeRecords([record]);
+    } catch (e) {
+      throw Exception('Failed to save meditation session: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMeditationHistory() async {
+    try {
+       final now = DateTime.now();
+       final startTime = now.subtract(const Duration(days: 30));
+
+       final response = await _healthConnector.readRecords(
+         ReadRecordsInTimeRangeRequest(
+           dataType: HealthDataType.mindfulnessSession,
+           startTime: startTime,
+           endTime: now,
+         ),
+       );
+
+       final records = response.records.whereType<MindfulnessSessionRecord>().toList();
+       records.sort((a, b) => b.startTime.compareTo(a.startTime));
+
+       return records.map((r) => {
+         'startTime': r.startTime,
+         'endTime': r.endTime,
+         'title': r.title ?? 'Meditation',
+         'durationMinutes': r.endTime.difference(r.startTime).inMinutes,
+       }).toList();
+    } catch (e) {
+      print('Failed to fetch meditation history: $e');
+      return [];
+    }
   }
 }

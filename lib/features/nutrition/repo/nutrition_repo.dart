@@ -1,17 +1,18 @@
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:health_connector/health_connector.dart';
+import 'package:health_connector/health_connector_internal.dart';
+import 'package:collection/collection.dart';
 import '../models/nutrition_entry.dart';
 import 'dart:developer' as developer;
 
 class NutritionRepository {
-  static const String baseUrl = 'http://localhost:3000/api';
+  final HealthConnector _healthConnector;
 
-  // Mock storage for meals (in-memory for now)
-  static final Map<String, List<NutritionEntry>> _mockMeals = {};
+  NutritionRepository({required HealthConnector healthConnector})
+      : _healthConnector = healthConnector;
 
   /// Submit nutrition entry with image and metadata
-  /// This sends to mock backend then stores in Health Connect
+  /// This stores in Health Connect
   Future<NutritionEntry> submitNutritionEntry({
     required File imageFile,
     required String userId,
@@ -20,112 +21,109 @@ class NutritionRepository {
     required DateTime mealTime,
   }) async {
     try {
-      // Create multipart request
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/nutrition/submit'),
-      );
-
-      // Add the image file
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'image',
-          imageFile.path,
-          filename: 'nutrition_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        ),
-      );
-
       // Calculate nutrition info
       final nutritionInfo = NutritionInfo.calculate(dishes);
 
-      // Create the nutrition data JSON
-      final nutritionData = {
-        'userId': userId,
-        'dishes': dishes.map((d) => d.toJson()).toList(),
-        'notes': notes,
-        'mealTime': mealTime.toIso8601String(),
-        'nutritionInfo': nutritionInfo.toJson(),
-        'timestamp': DateTime.now().toIso8601String(),
-      };
+      // Create the nutrition data
+      final entry = NutritionEntry(
+        id: 'nutrition_${DateTime.now().millisecondsSinceEpoch}',
+        userId: userId,
+        imageUrl: imageFile.path, // We can't store image in HC, so just keeping local path
+        dishes: dishes,
+        notes: notes,
+        mealTime: mealTime,
+        nutritionInfo: nutritionInfo,
+        createdAt: DateTime.now(),
+      );
 
-      // Add the nutrition data as a field
-      request.fields['nutritionData'] = jsonEncode(nutritionData);
+      // Write to Health Connect
+      await writeNutritionToHealthConnect(entry);
 
-      // Send the request
-      var response = await request.send();
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseBody = await response.stream.bytesToString();
-        final jsonData = jsonDecode(responseBody) as Map<String, dynamic>;
-
-        final entry = NutritionEntry(
-          id:
-              jsonData['id'] ??
-              'nutrition_${DateTime.now().millisecondsSinceEpoch}',
-          userId: userId,
-          imageUrl: jsonData['imageUrl'] ?? 'mock_url',
-          dishes: dishes,
-          notes: notes,
-          mealTime: mealTime,
-          nutritionInfo: nutritionInfo,
-          createdAt: DateTime.now(),
-        );
-
-        // Write to Health Connect
-        await writeNutritionToHealthConnect(entry);
-
-        return entry;
-      } else {
-        throw Exception(
-          'Failed to submit nutrition entry: ${response.statusCode}',
-        );
-      }
+      return entry;
     } catch (e) {
       throw Exception('Error submitting nutrition entry: $e');
     }
   }
 
-  /// Get nutrition entries for a user
+  /// Get nutrition entries for a user (not really by user, but by device)
   Future<List<NutritionEntry>> getNutritionEntries(String userId) async {
+    return getNutritionHistory();
+  }
+
+  // Gets all nutrition history from Health Connect
+  Future<List<NutritionEntry>> getNutritionHistory() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/nutrition/user/$userId'),
-        headers: {'Content-Type': 'application/json'},
+      final now = DateTime.now();
+      final startTime = now.subtract(const Duration(days: 30));
+
+      final response = await _healthConnector.readRecords(
+        ReadRecordsInTimeRangeRequest(
+          dataType: HealthDataType.nutrition,
+          startTime: startTime,
+          endTime: now,
+        ),
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data
-            .map(
-              (entry) => NutritionEntry.fromJson(entry as Map<String, dynamic>),
-            )
-            .toList();
-      } else {
-        throw Exception('Failed to fetch nutrition entries');
-      }
+      final records = response.records.whereType<NutritionRecord>().toList();
+      records.sort((a, b) => b.startTime.compareTo(a.startTime));
+
+      return records.map((r) {
+        // Map back to NutritionEntry
+        // Note: HC stores aggregates. We might lose individual dish info if we didn't store it in metadata/notes.
+        // We will do best effort mapping.
+
+        final calories = r.energy?.inKilocalories ?? 0;
+        final protein = r.protein?.inGrams ?? 0;
+        final carbs = r.totalCarbohydrate?.inGrams ?? 0;
+        final fat = r.totalFat?.inGrams ?? 0;
+
+        // Try to parse dishes from notes if we stored them there
+        List<DishMetadata> dishes = [];
+        String notes = r.notes ?? "";
+
+        return NutritionEntry(
+          id: r.id.toString(), // Health Connect ID
+          userId: "current",
+          imageUrl: "", // Not stored in HC
+          dishes: dishes,
+          notes: notes,
+          mealTime: r.startTime,
+          nutritionInfo: NutritionInfo(
+            calories: calories,
+            protein: protein,
+            carbohydrates: carbs,
+            fat: fat,
+          ),
+          createdAt: r.startTime,
+        );
+      }).toList();
+
     } catch (e) {
-      throw Exception('Error fetching nutrition entries: $e');
+      print('Error fetching nutrition entries: $e');
+      return [];
     }
   }
 
   /// Delete a nutrition entry
   Future<void> deleteNutritionEntry(String entryId) async {
+    // Health Connect delete requires ID or time range.
+    // If we have ID (and HC supports delete by ID for this record), we use it.
+    // For now, implementing delete is tricky without knowing if entryId is HC ID or internal.
+    // If it comes from getNutritionHistory, it is HC ID.
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/nutrition/$entryId'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode != 200 && response.statusCode != 204) {
-        throw Exception('Failed to delete nutrition entry');
-      }
+       await _healthConnector.deleteRecords(
+         DeleteRecordsByIdsRequest(
+           dataType: HealthDataType.nutrition,
+           ids: [entryId]
+         )
+       );
     } catch (e) {
-      throw Exception('Error deleting nutrition entry: $e');
+       // Fallback or ignore
+       print("Delete failed: $e");
     }
   }
 
-  /// Mock submit for testing without backend
-  /// Simulates a server response with a delay, stores in mock memory and Health Connect
+  /// Mock submit for testing - redirected to real submit
   Future<NutritionEntry> mockSubmitNutritionEntry({
     required File imageFile,
     required String userId,
@@ -133,42 +131,13 @@ class NutritionRepository {
     required String notes,
     required DateTime mealTime,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Calculate nutrition info
-    final nutritionInfo = NutritionInfo.calculate(dishes);
-
-    final entry = NutritionEntry(
-      id: 'nutrition_${DateTime.now().millisecondsSinceEpoch}',
-      userId: userId,
-      imageUrl: 'file://${imageFile.path}',
-      dishes: dishes,
-      notes: notes,
-      mealTime: mealTime,
-      nutritionInfo: nutritionInfo,
-      createdAt: DateTime.now(),
+    return submitNutritionEntry(
+        imageFile: imageFile,
+        userId: userId,
+        dishes: dishes,
+        notes: notes,
+        mealTime: mealTime
     );
-
-    // Store in mock storage
-    if (!_mockMeals.containsKey(userId)) {
-      _mockMeals[userId] = [];
-    }
-    _mockMeals[userId]!.add(entry);
-
-    // Write to Health Connect
-    try {
-      await writeNutritionToHealthConnect(entry);
-    } catch (e) {
-      print('Error writing to Health Connect: $e', );
-      // Continue even if Health Connect fails
-    }
-
-    print(
-      'Meal added: ${entry.dishes.map((d) => d.dishName).join(", ")} at ${entry.mealTime}',
-    );
-
-    return entry;
   }
 
   /// Get meals for a specific user on a specific date
@@ -177,99 +146,81 @@ class NutritionRepository {
     DateTime date,
   ) async {
     try {
-      // Try to fetch from backend first
-      try {
-        final response = await http
-            .get(
-              Uri.parse(
-                '$baseUrl/nutrition/user/$userId/date/${date.toIso8601String()}',
-              ),
-              headers: {'Content-Type': 'application/json'},
-            )
-            .timeout(const Duration(seconds: 5));
-
-        if (response.statusCode == 200) {
-          final List<dynamic> data = jsonDecode(response.body);
-          return data
-              .map(
-                (entry) =>
-                    NutritionEntry.fromJson(entry as Map<String, dynamic>),
-              )
-              .toList();
-        }
-      } catch (e) {
-        print('Backend fetch failed, using mock data: $e');
-      }
-
-      // Fallback to mock storage
       final startOfDay = DateTime(date.year, date.month, date.day);
       final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-      final meals = _mockMeals[userId] ?? [];
-      final filtered = meals
-          .where(
-            (meal) =>
-                meal.mealTime.isAfter(startOfDay) &&
-                meal.mealTime.isBefore(endOfDay),
-          )
-          .toList();
+      final response = await _healthConnector.readRecords(
+        ReadRecordsInTimeRangeRequest(
+          dataType: HealthDataType.nutrition,
+          startTime: startOfDay,
+          endTime: endOfDay,
+        ),
+      );
 
-      // Sort by meal time
-      filtered.sort((a, b) => a.mealTime.compareTo(b.mealTime));
+      final records = response.records.whereType<NutritionRecord>().toList();
+      records.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      print('Fetched ${filtered.length} meals for $date');
+       return records.map((r) {
+        final calories = r.energy?.inKilocalories ?? 0;
+        final protein = r.protein?.inGrams ?? 0;
+        final carbs = r.totalCarbohydrate?.inGrams ?? 0;
+        final fat = r.totalFat?.inGrams ?? 0;
 
-      return filtered;
+        return NutritionEntry(
+          id: r.id.toString(),
+          userId: userId,
+          imageUrl: "",
+          dishes: [],
+          notes: r.notes ?? "",
+          mealTime: r.startTime,
+          nutritionInfo: NutritionInfo(
+            calories: calories,
+            protein: protein,
+            carbohydrates: carbs,
+            fat: fat,
+          ),
+          createdAt: r.startTime,
+        );
+      }).toList();
+
     } catch (e) {
-      print('Error fetching meals for date: $e', );
+      print('Error fetching meals for date: $e');
       return [];
     }
   }
 
-  /// Write nutrition data to Health Connect as a note/activity record
-  /// Since NutrientRecord doesn't exist, we log it and store locally
+  /// Write nutrition data to Health Connect
   Future<void> writeNutritionToHealthConnect(NutritionEntry entry) async {
     try {
+      final record = NutritionRecord(
+        startTime: entry.mealTime,
+        endTime: entry.mealTime.add(const Duration(minutes: 30)), // Meal duration assumption
+        transFat: null, // Optional
+        protein: Mass.grams(entry.nutritionInfo.protein),
+        totalCarbohydrate: Mass.grams(entry.nutritionInfo.carbohydrates),
+        totalFat: Mass.grams(entry.nutritionInfo.fat),
+        energy: Energy.kilocalories(entry.nutritionInfo.calories),
+        metadata: Metadata.manualEntry(),
+        notes: entry.notes,
+        name: entry.dishes.isNotEmpty ? entry.dishes.map((d) => d.dishName).join(", ") : "Meal",
+      );
+
+      await _healthConnector.writeRecords([record]);
+
       print(
         'Writing nutrition to Health Connect: '
         '${entry.nutritionInfo.calories} calories, '
-        '${entry.nutritionInfo.protein}g protein, '
-        '${entry.nutritionInfo.carbohydrates}g carbs, '
-        '${entry.nutritionInfo.fat}g fat',
+        '${entry.nutritionInfo.protein}g protein',
       );
-
-      // Note: health_connector may not have NutrientRecord in current version
-      // Data is stored locally and synced when Health Connect API supports it
-      // For now, we log it and keep in mock storage
     } catch (e) {
-      print('Error in writeNutritionToHealthConnect: $e', );
+      print('Error in writeNutritionToHealthConnect: $e');
+      throw Exception('Failed to write nutrition to Health Connect');
     }
   }
 
-  /// Delete meal and remove from Health Connect
+  /// Delete meal
   Future<void> deleteMeal(String userId, String entryId) async {
-    try {
-      // Remove from mock storage
-      if (_mockMeals.containsKey(userId)) {
-        _mockMeals[userId]!.removeWhere((meal) => meal.id == entryId);
-      }
-
-      // Try to delete from backend
-      try {
-        await http
-            .delete(
-              Uri.parse('$baseUrl/nutrition/$entryId'),
-              headers: {'Content-Type': 'application/json'},
-            )
-            .timeout(const Duration(seconds: 5));
-      } catch (e) {
-        print('Backend delete error (continuing): $e');
-      }
-
-      print('Meal $entryId deleted from app');
-    } catch (e) {
-      throw Exception('Error deleting meal: $e');
-    }
+     await deleteNutritionEntry(entryId);
   }
 
   /// Get total daily nutrition for a date

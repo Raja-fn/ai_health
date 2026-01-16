@@ -60,7 +60,7 @@ class _HomePageState extends State<HomePage> {
     _permissionsService = PermissionsService(healthConnector: healthConnector);
     _stepRepository = StepRepository(healthConnector: healthConnector);
     _sleepRepository = SleepRepository(healthConnector: healthConnector);
-    _vitalsRepository = VitalsRepository();
+    _vitalsRepository = VitalsRepository(healthConnector: healthConnector);
     _hydrationRepository = HydrationRepository(
       healthConnector: healthConnector,
     );
