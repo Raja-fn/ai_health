@@ -21,6 +21,102 @@ class _FormPageState extends State<FormPage> {
     _formBloc.add(LoadProfileQuestions());
   }
 
+  /// Validate all form fields before submission
+  String? _validateAllFields(List<ProfileQuestion> questions) {
+    // Check Question 1: Age Group (required)
+    if (questions[0].selectedAnswer == null ||
+        questions[0].selectedAnswer!.isEmpty) {
+      return 'Please select your age group';
+    }
+
+    // Check Question 2: Biological Sex (required)
+    if (questions[1].selectedAnswer == null ||
+        questions[1].selectedAnswer!.isEmpty) {
+      return 'Please select your biological sex';
+    }
+
+    // Check Question 3: Height (required, range 100-250)
+    if (questions[2].selectedAnswer == null ||
+        questions[2].selectedAnswer!.isEmpty) {
+      return 'Please enter your height';
+    }
+    final height = int.tryParse(questions[2].selectedAnswer!);
+    if (height == null) {
+      return 'Height must be a valid number';
+    }
+    if (height < 100 || height > 250) {
+      return 'Height must be between 100 and 250 cm';
+    }
+
+    // Check Question 4: Weight (required, range 30-300)
+    if (questions[3].selectedAnswer == null ||
+        questions[3].selectedAnswer!.isEmpty) {
+      return 'Please enter your weight';
+    }
+    final weight = double.tryParse(questions[3].selectedAnswer!);
+    if (weight == null) {
+      return 'Weight must be a valid number';
+    }
+    if (weight < 30 || weight > 300) {
+      return 'Weight must be between 30 and 300 kg';
+    }
+
+    // Check Question 5: Body Type (required)
+    if (questions[4].selectedAnswer == null ||
+        questions[4].selectedAnswer!.isEmpty) {
+      return 'Please select your body type';
+    }
+
+    // Check Question 6: Primary Health Goal (required)
+    if (questions[5].selectedAnswer == null ||
+        questions[5].selectedAnswer!.isEmpty) {
+      return 'Please select your primary health goal';
+    }
+
+    // Check Question 7: Activity Level (required)
+    if (questions[6].selectedAnswer == null ||
+        questions[6].selectedAnswer!.isEmpty) {
+      return 'Please select your activity level';
+    }
+
+    // Check Question 8: Dietary Preference (required)
+    if (questions[7].selectedAnswer == null ||
+        questions[7].selectedAnswer!.isEmpty) {
+      return 'Please select your dietary preference';
+    }
+
+    // Check Question 9: Sleep Duration (required)
+    if (questions[8].selectedAnswer == null ||
+        questions[8].selectedAnswer!.isEmpty) {
+      return 'Please select your average sleep duration';
+    }
+
+    // Check Question 10: Medical Conditions (optional, but if selected should be valid)
+    // This one is optional, so we just return null if everything passes
+
+    return null; // All validations passed
+  }
+
+  /// Handle form submission with validation
+  void _handleSubmit(ProfileFormState state) {
+    final validationError = _validateAllFields(state.questions);
+
+    if (validationError != null) {
+      // Show validation error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validationError),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // All validations passed, submit the form
+    _formBloc.add(ProfileFormSubmitted());
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -38,9 +134,13 @@ class _FormPageState extends State<FormPage> {
                 MaterialPageRoute(builder: (context) => const SurveyPage()),
               );
             } else if (state is FormFailure) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error: ${state.error}')));
+              print(state.error);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${state.error}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           },
           builder: (context, state) {
@@ -75,7 +175,7 @@ class _FormPageState extends State<FormPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: state.isCompleted
-                            ? () => _formBloc.add(ProfileFormSubmitted())
+                            ? () => _handleSubmit(state)
                             : null,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -107,9 +207,26 @@ class _FormPageState extends State<FormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            question.question,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              Text(
+                question.question,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (question.inputType != 'checkbox')
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           if (question.inputType == 'radio') ...[
@@ -186,7 +303,8 @@ class _FormPageState extends State<FormPage> {
             TextFormField(
               initialValue: question.selectedAnswer,
               decoration: InputDecoration(
-                labelText: question.question,
+                labelText:
+                    '${question.question} (${question.minValue} - ${question.maxValue})',
                 hintText: 'Enter value',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -206,6 +324,7 @@ class _FormPageState extends State<FormPage> {
                     context.read<FormBloc>().add(
                       ProfileAnswerChanged(question.id, value),
                     );
+                    setState(() {});
                   }
                 }
               },
