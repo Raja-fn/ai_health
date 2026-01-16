@@ -3,6 +3,7 @@ import 'package:ai_health/utils/utils/extensions/display_name_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:health_connector/health_connector.dart';
+import 'dart:developer' as developer;
 import '../bloc/permissions_bloc.dart';
 import '../widgets/health_data_category_list_view.dart';
 import '../widgets/permission_list_tile.dart';
@@ -154,10 +155,19 @@ class _PermissionsPageState extends State<PermissionsPage> {
                       onPressed: state.selectedPermissions.isEmpty
                           ? null
                           : () {
+                              developer.log(
+                                'PermissionsPage: User tapped Request Permissions button with ${state.selectedPermissions.length} permissions',
+                              );
+                              developer.log(
+                                'PermissionsPage: Selected permissions: ${state.selectedPermissions.map((p) => p.toString().split('.').last).toList()}',
+                              );
                               context.read<PermissionsBloc>().add(
                                 RequestSelectedPermissions(
                                   state.selectedPermissions,
                                 ),
+                              );
+                              developer.log(
+                                'PermissionsPage: RequestSelectedPermissions event added to BLoC',
                               );
                             },
                     ),
