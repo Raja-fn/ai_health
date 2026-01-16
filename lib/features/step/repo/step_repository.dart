@@ -44,9 +44,9 @@ class StepRepository {
 
       List<DailySteps> dailySteps = [];
       grouped.forEach((date, dayRecords) {
-        num total = 0;
+        double total = 0;
         for (var record in dayRecords) {
-          total += int.parse(record.count.toString());
+          total += double.parse(record.count.toString());
         }
         dailySteps.add(DailySteps(date: date, count: total.toInt()));
       });

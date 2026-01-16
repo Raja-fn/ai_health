@@ -61,7 +61,9 @@ class _HomePageState extends State<HomePage> {
     _stepRepository = StepRepository(healthConnector: healthConnector);
     _sleepRepository = SleepRepository(healthConnector: healthConnector);
     _vitalsRepository = VitalsRepository();
-    _hydrationRepository = HydrationRepository(healthConnector: healthConnector);
+    _hydrationRepository = HydrationRepository(
+      healthConnector: healthConnector,
+    );
     _workoutRepository = WorkoutRepository(healthConnector: healthConnector);
 
     _checkProfileCompletion();
@@ -93,31 +95,27 @@ class _HomePageState extends State<HomePage> {
 
           // Sleep
           final sleepHistory = results[1] as List<SleepData>;
-          _weeklySleep = sleepHistory
-              .where((s) => s.date.isAfter(cutoff))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
+          _weeklySleep =
+              sleepHistory.where((s) => s.date.isAfter(cutoff)).toList()
+                ..sort((a, b) => a.date.compareTo(b.date));
 
           // Vitals
           final vitalsHistory = results[2] as List<VitalData>;
-          _weeklyVitals = vitalsHistory
-              .where((v) => v.date.isAfter(cutoff))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
+          _weeklyVitals =
+              vitalsHistory.where((v) => v.date.isAfter(cutoff)).toList()
+                ..sort((a, b) => a.date.compareTo(b.date));
 
           // Hydration
           final hydrationHistory = results[3] as List<DailyHydration>;
-          _weeklyHydration = hydrationHistory
-              .where((h) => h.date.isAfter(cutoff))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
+          _weeklyHydration =
+              hydrationHistory.where((h) => h.date.isAfter(cutoff)).toList()
+                ..sort((a, b) => a.date.compareTo(b.date));
 
           // Workouts
           final workoutHistory = results[4] as List<WorkoutData>;
-          _weeklyWorkouts = workoutHistory
-              .where((w) => w.date.isAfter(cutoff))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
+          _weeklyWorkouts =
+              workoutHistory.where((w) => w.date.isAfter(cutoff)).toList()
+                ..sort((a, b) => a.date.compareTo(b.date));
 
           _isLoadingDashboard = false;
         });
@@ -126,9 +124,9 @@ class _HomePageState extends State<HomePage> {
       developer.log("Error loading dashboard: $e");
       if (mounted) setState(() => _isLoadingDashboard = false);
     } finally {
-       if (mounted && _isLoadingDashboard) {
-         setState(() => _isLoadingDashboard = false);
-       }
+      if (mounted && _isLoadingDashboard) {
+        setState(() => _isLoadingDashboard = false);
+      }
     }
   }
 
@@ -184,7 +182,10 @@ class _HomePageState extends State<HomePage> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 20.0,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -213,7 +214,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           InkWell(
                             onTap: () {
-                               // Optional: Profile tap action
+                              // Optional: Profile tap action
                             },
                             borderRadius: BorderRadius.circular(50),
                             child: CircleAvatar(
@@ -222,7 +223,9 @@ class _HomePageState extends State<HomePage> {
                               child: Text(
                                 name.isNotEmpty ? name[0].toUpperCase() : 'U',
                                 style: const TextStyle(
-                                    color: Colors.blueGrey, fontWeight: FontWeight.bold),
+                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -246,7 +249,7 @@ class _HomePageState extends State<HomePage> {
                             icon: Icons.directions_walk,
                             color: Colors.orangeAccent,
                           ),
-                           _buildSummaryCard(
+                          _buildSummaryCard(
                             title: "Sleep",
                             value: _getTodaySleep(),
                             unit: "hrs",
@@ -260,7 +263,7 @@ class _HomePageState extends State<HomePage> {
                             icon: Icons.water_drop,
                             color: Colors.blueAccent,
                           ),
-                           _buildSummaryCard(
+                          _buildSummaryCard(
                             title: "Active",
                             value: "${_getTodayWorkoutMins()}m",
                             unit: "today",
@@ -315,18 +318,25 @@ class _HomePageState extends State<HomePage> {
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                               ),
                               primaryYAxis: NumericAxis(
-                                majorGridLines: MajorGridLines(width: 0.5, color: Colors.grey[200]),
+                                majorGridLines: MajorGridLines(
+                                  width: 0.5,
+                                  color: Colors.grey[200],
+                                ),
                                 axisLine: const AxisLine(width: 0),
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                               ),
                               series: [
                                 ColumnSeries<DailySteps, DateTime>(
                                   dataSource: _weeklySteps,
-                                  xValueMapper: (DailySteps data, _) => data.date,
-                                  yValueMapper: (DailySteps data, _) => data.count,
+                                  xValueMapper: (DailySteps data, _) =>
+                                      data.date,
+                                  yValueMapper: (DailySteps data, _) =>
+                                      data.count,
                                   name: 'Steps',
                                   color: Colors.orangeAccent,
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(6),
+                                  ),
                                 ),
                               ],
                             ),
@@ -338,7 +348,7 @@ class _HomePageState extends State<HomePage> {
 
                   const SliverPadding(padding: EdgeInsets.only(top: 24)),
 
-                   SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
                       child: Column(
@@ -378,18 +388,27 @@ class _HomePageState extends State<HomePage> {
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                               ),
                               primaryYAxis: NumericAxis(
-                                majorGridLines: MajorGridLines(width: 0.5, color: Colors.grey[200]),
+                                majorGridLines: MajorGridLines(
+                                  width: 0.5,
+                                  color: Colors.grey[200],
+                                ),
                                 axisLine: const AxisLine(width: 0),
                                 minimum: 0,
-                                maximum: 12, // Adjusted for sleep hours or stress level
+                                maximum:
+                                    12, // Adjusted for sleep hours or stress level
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                               ),
-                              legend: Legend(isVisible: true, position: LegendPosition.bottom),
+                              legend: Legend(
+                                isVisible: true,
+                                position: LegendPosition.bottom,
+                              ),
                               series: [
                                 SplineAreaSeries<SleepData, DateTime>(
                                   dataSource: _weeklySleep,
-                                  xValueMapper: (SleepData data, _) => data.date,
-                                  yValueMapper: (SleepData data, _) => data.durationHours,
+                                  xValueMapper: (SleepData data, _) =>
+                                      data.date,
+                                  yValueMapper: (SleepData data, _) =>
+                                      data.durationHours,
                                   name: 'Sleep (hrs)',
                                   color: Colors.indigoAccent.withOpacity(0.1),
                                   borderColor: Colors.indigoAccent,
@@ -397,12 +416,16 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 LineSeries<VitalData, DateTime>(
                                   dataSource: _weeklyVitals,
-                                  xValueMapper: (VitalData data, _) => data.date,
-                                  yValueMapper: (VitalData data, _) => data.stressLevel,
+                                  xValueMapper: (VitalData data, _) =>
+                                      data.date,
+                                  yValueMapper: (VitalData data, _) =>
+                                      data.stressLevel,
                                   name: 'Stress',
                                   color: Colors.redAccent,
                                   width: 2,
-                                  markerSettings: const MarkerSettings(isVisible: true),
+                                  markerSettings: const MarkerSettings(
+                                    isVisible: true,
+                                  ),
                                 ),
                               ],
                             ),
@@ -411,7 +434,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-
 
                   const SliverPadding(padding: EdgeInsets.only(top: 24)),
 
@@ -476,7 +498,7 @@ class _HomePageState extends State<HomePage> {
                             Colors.teal,
                             const WorkoutsPage(),
                           ),
-                           _buildFeatureTile(
+                          _buildFeatureTile(
                             context,
                             "Meditation",
                             Icons.self_improvement,
@@ -491,7 +513,7 @@ class _HomePageState extends State<HomePage> {
                             StreakPage(userId: user?.id ?? ''),
                           ),
                           // Logout button
-                           Padding(
+                          Padding(
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: OutlinedButton.icon(
                               onPressed: () async {
@@ -499,16 +521,28 @@ class _HomePageState extends State<HomePage> {
                                 if (mounted) {
                                   Navigator.of(context).pushReplacement(
                                     MaterialPageRoute(
-                                        builder: (context) => const LoginPage()),
+                                      builder: (context) => const LoginPage(),
+                                    ),
                                   );
                                 }
                               },
-                              icon: const Icon(Icons.logout, color: Colors.grey),
-                              label: const Text("Log Out", style: TextStyle(color: Colors.grey)),
+                              icon: const Icon(
+                                Icons.logout,
+                                color: Colors.grey,
+                              ),
+                              label: const Text(
+                                "Log Out",
+                                style: TextStyle(color: Colors.grey),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: Colors.grey.shade300),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 24,
+                                ),
                               ),
                             ),
                           ),
@@ -554,8 +588,12 @@ class _HomePageState extends State<HomePage> {
     // SleepData has wakeTime (endTime).
 
     final todaySleep = _weeklySleep.firstWhereOrNull((s) {
-       final wakeDate = DateTime(s.wakeTime.year, s.wakeTime.month, s.wakeTime.day);
-       return wakeDate == today;
+      final wakeDate = DateTime(
+        s.wakeTime.year,
+        s.wakeTime.month,
+        s.wakeTime.day,
+      );
+      return wakeDate == today;
     });
 
     // Fallback: if no sleep ends today, maybe check if one started today (nap).
@@ -670,17 +708,11 @@ class _HomePageState extends State<HomePage> {
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: () {
-           Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => page),
-            );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => page));
         },
       ),
     );
