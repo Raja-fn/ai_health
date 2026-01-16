@@ -5,12 +5,15 @@ import 'package:ai_health/features/form/pages/form_page.dart';
 import 'package:ai_health/features/form/pages/survey_page.dart';
 import 'package:ai_health/features/form/repo/form_repository.dart';
 import 'package:ai_health/features/home/pages/home_page.dart';
+import 'package:ai_health/features/permissions/bloc/permissions_bloc.dart';
 import 'package:ai_health/features/permissions/pages/permissions_page.dart';
+import 'package:ai_health/services/permissions_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:health_connector/health_connector.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer' as developer;
 
 late HealthConnector healthConnector;
 
@@ -49,6 +52,10 @@ class MyApp extends StatelessWidget {
             create: (context) =>
                 FormBloc(formRepository: context.read<FormRepository>()),
           ),
+          BlocProvider(
+            create: (context) =>
+                PermissionsBloc(healthConnector: healthConnector),
+          ),
         ],
         child: MaterialApp(
           title: 'AI Health',
@@ -63,8 +70,43 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class _HomeRouter extends StatelessWidget {
+class _HomeRouter extends StatefulWidget {
   const _HomeRouter();
+
+  @override
+  State<_HomeRouter> createState() => _HomeRouterState();
+}
+
+class _HomeRouterState extends State<_HomeRouter> {
+  late PermissionsService _permissionsService;
+  bool _permissionsChecked = false;
+  bool _allPermissionsGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _permissionsService = PermissionsService(healthConnector: healthConnector);
+  }
+
+  Future<void> _checkPermissionsStatus() async {
+    try {
+      final allGranted = await _permissionsService.areAllPermissionsGranted();
+      if (mounted) {
+        setState(() {
+          _allPermissionsGranted = allGranted;
+          _permissionsChecked = true;
+        });
+      }
+      developer.log('Permissions check complete. All granted: $allGranted');
+    } catch (e) {
+      developer.log('Error checking permissions: $e', error: e);
+      if (mounted) {
+        setState(() {
+          _permissionsChecked = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +118,21 @@ class _HomeRouter extends StatelessWidget {
             builder: (context, formState) {
               if (formState is AllDataCompleted) {
                 // Both profile and survey are completed
-                return HomePage();
+                // Now check permissions
+                if (!_permissionsChecked) {
+                  _checkPermissionsStatus();
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (_allPermissionsGranted) {
+                  // All permissions granted, show home
+                  return const HomePage();
+                } else {
+                  // Not all permissions granted, show permissions page
+                  return const PermissionsPage();
+                }
               } else if (formState is ProfileAlreadyCompleted) {
                 // Profile is completed, but survey is pending
                 return const SurveyPage();
