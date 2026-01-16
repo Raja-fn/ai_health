@@ -43,15 +43,28 @@ class StepRepository {
       });
 
       List<DailySteps> dailySteps = [];
-      grouped.forEach((date, dayRecords) {
-        double total = 0;
-        for (var record in dayRecords) {
-          total += double.parse(record.count.toString());
-        }
-        dailySteps.add(DailySteps(date: date, count: total.toInt()));
-      });
 
-      // Sort by date
+      // Initialize with 0 for all days in range to ensure continuity
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+
+        // Find records for this day
+        final dayRecords = grouped[dayStart];
+        int count = 0;
+
+        if (dayRecords != null) {
+            double total = 0;
+            for (var record in dayRecords) {
+              total += double.parse(record.count.toString());
+            }
+            count = total.toInt();
+        }
+
+        dailySteps.add(DailySteps(date: dayStart, count: count));
+      }
+
+      // Sort by date (ascending)
       dailySteps.sort((a, b) => a.date.compareTo(b.date));
 
       return dailySteps;

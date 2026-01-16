@@ -46,17 +46,30 @@ class HydrationRepository {
       });
 
       List<DailyHydration> dailyHydration = [];
-      grouped.forEach((date, dayRecords) {
-        double totalVolume = 0;
-        for (var record in dayRecords) {
-          totalVolume += record.volume.inMilliliters;
+
+      // Initialize with 0 for all days in range
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+
+        // Find records for this day
+        final dayRecords = grouped[dayStart];
+        int volumeMl = 0;
+
+        if (dayRecords != null) {
+            double totalVolume = 0;
+            for (var record in dayRecords) {
+                totalVolume += record.volume.inMilliliters;
+            }
+            volumeMl = totalVolume.toInt();
         }
+
         dailyHydration.add(DailyHydration(
-          date: date,
-          volumeMl: totalVolume.toInt(),
-          glasses: (totalVolume / 250).toInt(),
+          date: dayStart,
+          volumeMl: volumeMl,
+          glasses: (volumeMl / 250).toInt(),
         ));
-      });
+      }
 
       // Sort by date
       dailyHydration.sort((a, b) => a.date.compareTo(b.date));
