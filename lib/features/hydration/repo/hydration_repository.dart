@@ -94,7 +94,7 @@ class HydrationRepository {
         );
 
         // Write the record to Health Connect
-        await _healthConnector.writeRecord(hydrationRecord);
+        await _healthConnector.writeRecords([hydrationRecord]);
       } catch (e) {
         throw Exception('Failed to log hydration: $e');
       }

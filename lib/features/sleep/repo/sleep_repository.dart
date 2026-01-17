@@ -1,8 +1,15 @@
 import 'package:health_connector/health_connector.dart';
 import 'package:ai_health/features/sleep/models/sleep_data.dart'; // Keeping the model for UI compatibility, but mapping it
 import 'dart:developer' as developer;
-
+import 'package:collection/collection.dart';
 import 'package:health_connector/health_connector_internal.dart';
+
+class DailySleep {
+  final DateTime date;
+  final double durationHours;
+
+  DailySleep({required this.date, required this.durationHours});
+}
 
 class SleepRepository {
   final HealthConnector _healthConnector;
@@ -80,6 +87,72 @@ class SleepRepository {
     } catch (e) {
       print('Error fetching sleep history: $e', );
       return [];
+    }
+  }
+
+  Future<List<DailySleep>> getDailySleepDuration(int days) async {
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days));
+    final startTime = DateTime(startDate.year, startDate.month, startDate.day);
+
+    try {
+      final response = await _healthConnector.readRecords(
+        ReadRecordsInTimeRangeRequest(
+          dataType: HealthDataType.sleepSession,
+          startTime: startTime,
+          endTime: now,
+        ),
+      );
+
+      final records = response.records.whereType<SleepSessionRecord>().toList();
+
+      // Group by day (using end time as the reference for "night's sleep" usually,
+      // but to be consistent with steps/hydration, let's use start time or better:
+      // identify which "day" the sleep belongs to.
+      // Simplest is start time.)
+      final grouped = groupBy(records, (SleepSessionRecord record) {
+        return DateTime(
+          record.startTime.year,
+          record.startTime.month,
+          record.startTime.day,
+        );
+      });
+
+      List<DailySleep> dailySleep = [];
+
+      // Initialize with 0 for all days in range
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+
+        final dayRecords = grouped[dayStart];
+        double totalHours = 0;
+
+        if (dayRecords != null) {
+          for (var record in dayRecords) {
+            totalHours += record.endTime.difference(record.startTime).inMinutes / 60.0;
+          }
+        }
+
+        dailySleep.add(DailySleep(date: dayStart, durationHours: totalHours));
+      }
+
+      // Sort by date (ascending)
+      dailySleep.sort((a, b) => a.date.compareTo(b.date));
+
+      return dailySleep;
+    } catch (e) {
+      print('Error fetching daily sleep: $e');
+      // Return empty list or 0-filled list on error?
+      // Better to return 0-filled list to avoid UI break
+      List<DailySleep> dailySleep = [];
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+        dailySleep.add(DailySleep(date: dayStart, durationHours: 0));
+      }
+      dailySleep.sort((a, b) => a.date.compareTo(b.date));
+      return dailySleep;
     }
   }
 
