@@ -5,6 +5,13 @@ import 'package:collection/collection.dart';
 import '../models/nutrition_entry.dart';
 import 'dart:developer' as developer;
 
+class DailyCalories {
+  final DateTime date;
+  final double calories;
+
+  DailyCalories({required this.date, required this.calories});
+}
+
 class NutritionRepository {
   final HealthConnector _healthConnector;
 
@@ -101,6 +108,64 @@ class NutritionRepository {
     } catch (e) {
       print('Error fetching nutrition entries: $e');
       return [];
+    }
+  }
+
+  Future<List<DailyCalories>> getDailyCalories(int days) async {
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days));
+    final startTime = DateTime(startDate.year, startDate.month, startDate.day);
+
+    try {
+      final response = await _healthConnector.readRecords(
+        ReadRecordsInTimeRangeRequest(
+          dataType: HealthDataType.nutrition,
+          startTime: startTime,
+          endTime: now,
+        ),
+      );
+
+      final records = response.records.whereType<NutritionRecord>().toList();
+
+      final grouped = groupBy(records, (NutritionRecord record) {
+        return DateTime(
+          record.startTime.year,
+          record.startTime.month,
+          record.startTime.day,
+        );
+      });
+
+      List<DailyCalories> dailyCalories = [];
+
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+
+        final dayRecords = grouped[dayStart];
+        double totalCalories = 0;
+
+        if (dayRecords != null) {
+          for (var record in dayRecords) {
+            totalCalories += record.energy?.inKilocalories ?? 0;
+          }
+        }
+
+        dailyCalories.add(DailyCalories(date: dayStart, calories: totalCalories));
+      }
+
+      dailyCalories.sort((a, b) => a.date.compareTo(b.date));
+
+      return dailyCalories;
+    } catch (e) {
+      print('Error fetching daily calories: $e');
+      List<DailyCalories> dailyCalories = [];
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+        dailyCalories.add(DailyCalories(date: dayStart, calories: 0));
+      }
+      dailyCalories.sort((a, b) => a.date.compareTo(b.date));
+      return dailyCalories;
     }
   }
 

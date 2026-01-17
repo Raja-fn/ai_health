@@ -3,7 +3,9 @@ import 'package:ai_health/features/form/pages/form_page.dart';
 import 'package:ai_health/features/hydration/bloc/hydration_bloc.dart';
 import 'package:ai_health/features/hydration/repo/hydration_repository.dart';
 import 'package:ai_health/features/meditation/pages/meditation_page.dart';
+import 'package:ai_health/features/meditation/data/meditation_repository.dart';
 import 'package:ai_health/features/nutrition/pages/nutrition_page.dart';
+import 'package:ai_health/features/nutrition/repo/nutrition_repo.dart';
 import 'package:ai_health/features/permissions/pages/permissions_page.dart';
 import 'package:ai_health/features/streak/pages/streak_page.dart';
 import 'package:ai_health/features/step/pages/step_page.dart';
@@ -44,12 +46,16 @@ class _HomePageState extends State<HomePage> {
   late VitalsRepository _vitalsRepository;
   late HydrationRepository _hydrationRepository;
   late WorkoutRepository _workoutRepository;
+  late NutritionRepository _nutritionRepository;
+  late MeditationRepository _meditationRepository;
 
   List<DailySteps> _weeklySteps = [];
-  List<SleepData> _weeklySleep = [];
+  List<DailySleep> _weeklySleep = [];
   List<VitalData> _weeklyVitals = [];
   List<DailyHydration> _weeklyHydration = [];
-  List<WorkoutData> _weeklyWorkouts = [];
+  List<DailyWorkout> _weeklyWorkouts = [];
+  List<DailyCalories> _weeklyCalories = [];
+  List<Map<String, dynamic>> _meditationHistory = [];
 
   bool _isLoadingDashboard = true;
 
@@ -65,6 +71,8 @@ class _HomePageState extends State<HomePage> {
       healthConnector: healthConnector,
     );
     _workoutRepository = WorkoutRepository(healthConnector: healthConnector);
+    _nutritionRepository = NutritionRepository(healthConnector: healthConnector);
+    _meditationRepository = MeditationRepository(healthConnector: healthConnector);
 
     _checkProfileCompletion();
     _loadDashboardData();
@@ -87,8 +95,8 @@ class _HomePageState extends State<HomePage> {
         _stepRepository.getDailySteps(7),
         [],
       );
-      final sleepFuture = safeFetch<List<SleepData>>(
-        _sleepRepository.getSleepHistory(),
+      final sleepFuture = safeFetch<List<DailySleep>>(
+        _sleepRepository.getDailySleepDuration(7),
         [],
       );
       final vitalsFuture = safeFetch<List<VitalData>>(
@@ -99,8 +107,16 @@ class _HomePageState extends State<HomePage> {
         _hydrationRepository.getHydrationHistory(7),
         [],
       );
-      final workoutFuture = safeFetch<List<WorkoutData>>(
-        _workoutRepository.getWorkoutHistory(),
+      final workoutFuture = safeFetch<List<DailyWorkout>>(
+        _workoutRepository.getDailyWorkoutDuration(7),
+        [],
+      );
+      final nutritionFuture = safeFetch<List<DailyCalories>>(
+        _nutritionRepository.getDailyCalories(7),
+        [],
+      );
+      final meditationFuture = safeFetch<List<Map<String, dynamic>>>(
+        _meditationRepository.getMeditationHistory(),
         [],
       );
 
@@ -110,36 +126,31 @@ class _HomePageState extends State<HomePage> {
         vitalsFuture,
         hydrationFuture,
         workoutFuture,
+        nutritionFuture,
+        meditationFuture,
       ]);
 
       if (mounted) {
         setState(() {
           _weeklySteps = results[0] as List<DailySteps>;
+          _weeklySleep = results[1] as List<DailySleep>;
+          _weeklyHydration = results[3] as List<DailyHydration>;
+          _weeklyWorkouts = results[4] as List<DailyWorkout>;
+          _weeklyCalories = results[5] as List<DailyCalories>;
+          _meditationHistory = results[6] as List<Map<String, dynamic>>;
 
           final cutoff = DateTime.now().subtract(const Duration(days: 7));
 
-          // Sleep
-          final sleep = results[1] as List<SleepData>;
-          _weeklySleep =
-              sleep.where((s) => s.date.isAfter(cutoff)).toList()
-                ..sort((a, b) => a.date.compareTo(b.date));
-
-          // Vitals
+          // Vitals: Filter out HR-only records if they mess up the Stress chart (which expects stressLevel > 0 usually)
+          // Or we trust the chart handles 0s.
+          // Let's filter to ensure valid stress data for the chart, OR just filter by date.
+          // If we show a "Stress" chart, we probably only want records with Stress.
+          // VitalData has stressLevel default 0 if from HC (HR only).
+          // We'll keep them but might need to be careful.
+          // For now, standard filtering.
           final vitals = results[2] as List<VitalData>;
           _weeklyVitals =
               vitals.where((v) => v.date.isAfter(cutoff)).toList()
-                ..sort((a, b) => a.date.compareTo(b.date));
-
-          // Hydration
-          final hydration = results[3] as List<DailyHydration>;
-          _weeklyHydration =
-              hydration.where((h) => h.date.isAfter(cutoff)).toList()
-                ..sort((a, b) => a.date.compareTo(b.date));
-
-          // Workouts
-          final workouts = results[4] as List<WorkoutData>;
-          _weeklyWorkouts =
-              workouts.where((w) => w.date.isAfter(cutoff)).toList()
                 ..sort((a, b) => a.date.compareTo(b.date));
 
           _isLoadingDashboard = false;
@@ -295,6 +306,20 @@ class _HomePageState extends State<HomePage> {
                             icon: Icons.fitness_center,
                             color: Colors.teal,
                           ),
+                          _buildSummaryCard(
+                            title: "Calories",
+                            value: _getTodayCalories(),
+                            unit: "kcal",
+                            icon: Icons.local_fire_department,
+                            color: Colors.redAccent,
+                          ),
+                          _buildSummaryCard(
+                            title: "Meditate",
+                            value: "${_getTodayMeditationMins()}m",
+                            unit: "today",
+                            icon: Icons.self_improvement,
+                            color: Colors.purple,
+                          ),
                         ],
                       ),
                     ),
@@ -428,11 +453,11 @@ class _HomePageState extends State<HomePage> {
                                 position: LegendPosition.bottom,
                               ),
                               series: [
-                                SplineAreaSeries<SleepData, DateTime>(
+                                SplineAreaSeries<DailySleep, DateTime>(
                                   dataSource: _weeklySleep,
-                                  xValueMapper: (SleepData data, _) =>
+                                  xValueMapper: (DailySleep data, _) =>
                                       data.date,
-                                  yValueMapper: (SleepData data, _) =>
+                                  yValueMapper: (DailySleep data, _) =>
                                       data.durationHours,
                                   name: 'Sleep (hrs)',
                                   color: Colors.indigoAccent.withOpacity(0.1),
@@ -596,33 +621,10 @@ class _HomePageState extends State<HomePage> {
     if (_weeklySleep.isEmpty) return "0";
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    // Find sleep session that ended today (or started today, depending on logic)
-    // Usually sleep for "today" means last night's sleep which might end today morning.
-    // Let's look for sleep ending on "today".
-    // _weeklySleep is SleepData with date=startTime.
-    // We should probably check if date is today or yesterday.
-    // Let's stick to simple "started today" or "ended today" if possible.
-    // SleepRepository.getSleepHistory returns SleepData with date = startTime.
-    // If I sleep at 11 PM and wake up at 7 AM, date is yesterday.
-    // But usually people want to see "Last Night's Sleep".
-    // Let's just pick the latest one if it's within 24 hours?
-    // Or check if it matches today.
-    // For now, to be safe and consistent with "Today's Summary", I'll check if the sleep record date (start time) is today.
-    // Wait, if I sleep at 11PM, the date is yesterday.
-    // Let's check for sleep ending today.
-    // SleepData has wakeTime (endTime).
 
     final todaySleep = _weeklySleep.firstWhereOrNull((s) {
-      final wakeDate = DateTime(
-        s.wakeTime.year,
-        s.wakeTime.month,
-        s.wakeTime.day,
-      );
-      return wakeDate == today;
+       return DateTime(s.date.year, s.date.month, s.date.day) == today;
     });
-
-    // Fallback: if no sleep ends today, maybe check if one started today (nap).
-    // Or just return 0.
 
     return todaySleep?.durationHours.toStringAsFixed(1) ?? "0";
   }
@@ -641,9 +643,33 @@ class _HomePageState extends State<HomePage> {
     if (_weeklyWorkouts.isEmpty) return 0;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    return _weeklyWorkouts
-        .where((w) => DateTime(w.date.year, w.date.month, w.date.day) == today)
-        .fold(0, (sum, item) => sum + item.durationMinutes);
+    final todayWorkout = _weeklyWorkouts.firstWhereOrNull(
+      (w) => DateTime(w.date.year, w.date.month, w.date.day) == today,
+    );
+    return todayWorkout?.durationMinutes ?? 0;
+  }
+
+  String _getTodayCalories() {
+    if (_weeklyCalories.isEmpty) return "0";
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayCals = _weeklyCalories.firstWhereOrNull(
+      (c) => DateTime(c.date.year, c.date.month, c.date.day) == today,
+    );
+    return todayCals?.calories.toInt().toString() ?? "0";
+  }
+
+  int _getTodayMeditationMins() {
+    if (_meditationHistory.isEmpty) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return _meditationHistory
+        .where((m) {
+          final date = m['startTime'] as DateTime;
+          return DateTime(date.year, date.month, date.day) == today;
+        })
+        .fold(0, (sum, item) => sum + (item['durationMinutes'] as int));
   }
 
   Widget _buildSummaryCard({

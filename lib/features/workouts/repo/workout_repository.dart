@@ -1,8 +1,15 @@
 import 'package:health_connector/health_connector.dart';
 import 'package:ai_health/features/workouts/models/workout_data.dart';
 import 'dart:developer' as developer;
-
+import 'package:collection/collection.dart';
 import 'package:health_connector/health_connector_internal.dart';
+
+class DailyWorkout {
+  final DateTime date;
+  final int durationMinutes;
+
+  DailyWorkout({required this.date, required this.durationMinutes});
+}
 
 class WorkoutRepository {
   final HealthConnector _healthConnector;
@@ -88,6 +95,64 @@ class WorkoutRepository {
     } catch (e) {
       print('Error fetching workout history: $e', );
       return [];
+    }
+  }
+
+  Future<List<DailyWorkout>> getDailyWorkoutDuration(int days) async {
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days));
+    final startTime = DateTime(startDate.year, startDate.month, startDate.day);
+
+    try {
+      final response = await _healthConnector.readRecords(
+        ReadRecordsInTimeRangeRequest(
+          dataType: HealthDataType.exerciseSession,
+          startTime: startTime,
+          endTime: now,
+        ),
+      );
+
+      final records = response.records.whereType<ExerciseSessionRecord>().toList();
+
+      final grouped = groupBy(records, (ExerciseSessionRecord record) {
+        return DateTime(
+          record.startTime.year,
+          record.startTime.month,
+          record.startTime.day,
+        );
+      });
+
+      List<DailyWorkout> dailyWorkouts = [];
+
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+
+        final dayRecords = grouped[dayStart];
+        int totalMinutes = 0;
+
+        if (dayRecords != null) {
+          for (var record in dayRecords) {
+            totalMinutes += record.endTime.difference(record.startTime).inMinutes;
+          }
+        }
+
+        dailyWorkouts.add(DailyWorkout(date: dayStart, durationMinutes: totalMinutes));
+      }
+
+      dailyWorkouts.sort((a, b) => a.date.compareTo(b.date));
+
+      return dailyWorkouts;
+    } catch (e) {
+      print('Error fetching daily workouts: $e');
+      List<DailyWorkout> dailyWorkouts = [];
+      for (int i = 0; i < days; i++) {
+        final date = now.subtract(Duration(days: i));
+        final dayStart = DateTime(date.year, date.month, date.day);
+        dailyWorkouts.add(DailyWorkout(date: dayStart, durationMinutes: 0));
+      }
+      dailyWorkouts.sort((a, b) => a.date.compareTo(b.date));
+      return dailyWorkouts;
     }
   }
 
