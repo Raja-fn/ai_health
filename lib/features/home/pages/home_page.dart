@@ -1,23 +1,39 @@
 import 'package:ai_health/features/auth/pages/login_page.dart';
 import 'package:ai_health/features/form/pages/form_page.dart';
-import 'package:ai_health/features/home/widgets/feature_card.dart';
+import 'package:ai_health/features/hydration/bloc/hydration_bloc.dart';
+import 'package:ai_health/features/hydration/repo/hydration_repository.dart';
 import 'package:ai_health/features/meditation/pages/meditation_page.dart';
+import 'package:ai_health/features/meditation/data/meditation_repository.dart';
 import 'package:ai_health/features/nutrition/pages/nutrition_page.dart';
+import 'package:ai_health/features/nutrition/repo/nutrition_repo.dart';
 import 'package:ai_health/features/permissions/pages/permissions_page.dart';
 import 'package:ai_health/features/streak/pages/streak_page.dart';
 import 'package:ai_health/features/step/pages/step_page.dart';
 import 'package:ai_health/features/hydration/pages/hydration_page.dart';
 import 'package:ai_health/features/sleep/pages/sleep_page.dart';
+import 'package:ai_health/features/sleep/models/sleep_data.dart';
+import 'package:ai_health/features/sleep/repo/sleep_repository.dart';
 import 'package:ai_health/features/vitals/pages/vitals_page.dart';
+import 'package:ai_health/features/vitals/repo/vitals_repository.dart';
+import 'package:ai_health/features/vitals/models/vital_data.dart';
+import 'package:ai_health/features/workouts/models/workout_data.dart';
 import 'package:ai_health/features/workouts/pages/workouts_page.dart';
+import 'package:ai_health/features/workouts/repo/workout_repository.dart';
+import 'package:ai_health/features/step/repo/step_repository.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ai_health/features/hydration/bloc/hydration_bloc.dart';
 import 'package:ai_health/main.dart' show healthConnector;
 import 'package:ai_health/services/permissions_service.dart';
 import 'package:ai_health/services/profile_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:developer' as developer;
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:ai_health/features/home/providers/dashboard_provider.dart';
+import 'package:ai_health/src/features/read_health_records/pages/read_health_records_page.dart';
+import 'package:ai_health/src/features/read_health_records/read_health_records_change_notifier.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -35,10 +51,11 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _profileService = ProfileService(supabaseClient: Supabase.instance.client);
     _permissionsService = PermissionsService(healthConnector: healthConnector);
+
     _checkProfileCompletion();
   }
 
-  /// Check if profile is completed, redirect to form if not
+
   Future<void> _checkProfileCompletion() async {
     try {
       final isProfileCompleted = await _profileService.isProfileCompleted();
@@ -46,220 +63,618 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       if (!isProfileCompleted) {
-        // Redirect to form page if profile is not completed
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const FormPage()),
         );
       } else {
-        // Profile completed, check permissions
         _checkPermissionsCompletion();
       }
     } catch (e) {
-      developer.log('Error checking profile: $e', error: e);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error checking profile: $e')));
+      print('Error checking profile: $e');
     }
   }
 
-  /// Check if all available permissions are granted
-  /// If not all are granted, redirect to permissions page
   Future<void> _checkPermissionsCompletion() async {
     try {
-      developer.log(
-        'HomePage._checkPermissionsCompletion - Starting permissions check',
-      );
-
       final allPermissionsGranted = await _permissionsService
           .areAllPermissionsGranted();
 
       if (!mounted) return;
 
-      developer.log(
-        'HomePage._checkPermissionsCompletion - All permissions granted: $allPermissionsGranted',
-      );
-
       if (!allPermissionsGranted) {
-        // Redirect to permissions page if not all permissions are granted
-        developer.log(
-          'HomePage._checkPermissionsCompletion - Redirecting to PermissionsPage',
-        );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const PermissionsPage()),
         );
-      } else {
-        developer.log(
-          'HomePage._checkPermissionsCompletion - All permissions granted, showing home',
-        );
       }
     } catch (e) {
-      developer.log('Error checking permissions: $e', error: e);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error checking permissions: $e')));
+      print('Error checking permissions: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          "Hi " +
-              "${Supabase.instance.client.auth.currentUser!.userMetadata!["name"]}!!!"
-                  .toUpperCase()
-                  .split(" ")[0] +
-              "!!!",
-        ),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          height: 12,
-          child: const CircleAvatar(child: Icon(Icons.person), radius: 12),
-        ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              }
-            },
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your Dashboard',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                children: [
-                  FeatureCard(
-                    title: 'Nutrition',
-                    icon: Icons.restaurant_menu,
-                    color: Colors.green,
-                    onTap: () {
-                      final userId =
-                          Supabase.instance.client.auth.currentUser?.id;
-                      if (userId != null) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => NutritionPage(userId: userId),
+    final user = Supabase.instance.client.auth.currentUser;
+    final name =
+        user?.userMetadata?["name"]?.toString().split(" ")[0] ?? "User";
+    final now = DateTime.now();
+    final dateString = DateFormat('EEEE, d MMMM').format(now);
+
+    return ChangeNotifierProvider(
+      create: (_) => DashboardProvider(healthConnector)..loadDashboardData(),
+      child: Consumer<DashboardProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          
+          return Scaffold(
+            backgroundColor: Colors.grey[50],
+            body: SafeArea(
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 20.0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dateString.toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Hello, $name",
+                                style: const TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      }
-                    },
-                  ),
-                  FeatureCard(
-                    title: 'Meditation',
-                    icon: Icons.self_improvement,
-                    color: Colors.purple,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const MeditationPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  FeatureCard(
-                    title: 'Hydration',
-                    icon: Icons.water_drop,
-                    color: Colors.blue,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => BlocProvider(
-                            create: (context) => HydrationBloc(),
-                            child: const HydrationPage(),
+                          InkWell(
+                            onTap: () {
+                              // Optional: Profile tap action
+                            },
+                            borderRadius: BorderRadius.circular(50),
+                            child: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Colors.blueGrey[100],
+                              child: Text(
+                                name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                style: const TextStyle(
+                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        ],
+                      ),
+                    ),
                   ),
-                  FeatureCard(
-                    title: 'Streak',
-                    icon: Icons.local_fire_department,
-                    color: Colors.orange,
-                    onTap: () {
-                      final userId =
-                          Supabase.instance.client.auth.currentUser?.id;
-                      if (userId != null) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => StreakPage(userId: userId),
+
+                  // Summary List
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 140,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          _buildSummaryCard(
+                            title: "Steps",
+                            value: _getTodaySteps(provider.weeklySteps).toString(),
+                            unit: "steps",
+                            icon: Icons.directions_walk,
+                            color: Colors.orangeAccent,
                           ),
-                        );
-                      }
-                    },
+                          _buildSummaryCard(
+                            title: "Sleep",
+                            value: _getTodaySleep(provider.weeklySleep),
+                            unit: "hrs",
+                            icon: Icons.bedtime,
+                            color: Colors.indigoAccent,
+                          ),
+                          _buildSummaryCard(
+                            title: "Water",
+                            value: "${_getTodayWater(provider.weeklyHydration)}ml",
+                            unit: "today",
+                            icon: Icons.water_drop,
+                            color: Colors.blueAccent,
+                          ),
+                          _buildSummaryCard(
+                            title: "Active",
+                            value: "${_getTodayWorkoutMins(provider.weeklyWorkouts)}m",
+                            unit: "today",
+                            icon: Icons.fitness_center,
+                            color: Colors.teal,
+                          ),
+                          _buildSummaryCard(
+                            title: "Calories",
+                            value: _getTodayCalories(provider.weeklyCalories),
+                            unit: "kcal",
+                            icon: Icons.local_fire_department,
+                            color: Colors.redAccent,
+                          ),
+                          _buildSummaryCard(
+                            title: "Meditate",
+                            value: "${_getTodayMeditationMins(provider.meditationHistory)}m",
+                            unit: "today",
+                            icon: Icons.self_improvement,
+                            color: Colors.purple,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  FeatureCard(
-                    title: 'Steps',
-                    icon: Icons.directions_run,
-                    color: Colors.red,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const StepPage(),
-                        ),
-                      );
-                    },
+
+                  const SliverPadding(padding: EdgeInsets.only(top: 24)),
+
+                  // Charts Section
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Activity Trends",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            height: 250,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: SfCartesianChart(
+                              margin: EdgeInsets.zero,
+                              plotAreaBorderWidth: 0,
+                              primaryXAxis: DateTimeAxis(
+                                dateFormat: DateFormat.E(),
+                                majorGridLines: const MajorGridLines(width: 0),
+                                axisLine: const AxisLine(width: 0),
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                              ),
+                              primaryYAxis: NumericAxis(
+                                majorGridLines: MajorGridLines(
+                                  width: 0.5,
+                                  color: Colors.grey[200],
+                                ),
+                                axisLine: const AxisLine(width: 0),
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                              ),
+                              series: [
+                                ColumnSeries<DailySteps, DateTime>(
+                                  dataSource: provider.weeklySteps,
+                                  xValueMapper: (DailySteps data, _) =>
+                                      data.date,
+                                  yValueMapper: (DailySteps data, _) =>
+                                      data.count,
+                                  name: 'Steps',
+                                  color: Colors.orangeAccent,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  FeatureCard(
-                    title: 'Sleep',
-                    icon: Icons.bed,
-                    color: Colors.indigo,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const SleepPage(),
-                        ),
-                      );
-                    },
+
+                  const SliverPadding(padding: EdgeInsets.only(top: 24)),
+
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Wellness Trends",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            height: 250,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: SfCartesianChart(
+                              margin: EdgeInsets.zero,
+                              plotAreaBorderWidth: 0,
+                              primaryXAxis: DateTimeAxis(
+                                dateFormat: DateFormat.E(),
+                                majorGridLines: const MajorGridLines(width: 0),
+                                axisLine: const AxisLine(width: 0),
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                              ),
+                              primaryYAxis: NumericAxis(
+                                majorGridLines: MajorGridLines(
+                                  width: 0.5,
+                                  color: Colors.grey[200],
+                                ),
+                                axisLine: const AxisLine(width: 0),
+                                minimum: 0,
+                                maximum: 12,
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                              ),
+                              legend: Legend(
+                                isVisible: true,
+                                position: LegendPosition.bottom,
+                              ),
+                              series: [
+                                SplineAreaSeries<DailySleep, DateTime>(
+                                  dataSource: provider.weeklySleep,
+                                  xValueMapper: (DailySleep data, _) =>
+                                      data.date,
+                                  yValueMapper: (DailySleep data, _) =>
+                                      data.durationHours,
+                                  name: 'Sleep (hrs)',
+                                  color: Colors.indigoAccent.withOpacity(0.1),
+                                  borderColor: Colors.indigoAccent,
+                                  borderWidth: 2,
+                                ),
+                                LineSeries<VitalData, DateTime>(
+                                  dataSource: provider.weeklyVitals,
+                                  xValueMapper: (VitalData data, _) =>
+                                      data.date,
+                                  yValueMapper: (VitalData data, _) =>
+                                      data.stressLevel,
+                                  name: 'Stress',
+                                  color: Colors.redAccent,
+                                  width: 2,
+                                  markerSettings: const MarkerSettings(
+                                    isVisible: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  FeatureCard(
-                    title: 'Vitals & Mood',
-                    icon: Icons.monitor_heart,
-                    color: Colors.pink,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const VitalsPage(),
-                        ),
-                      );
-                    },
+
+                  const SliverPadding(padding: EdgeInsets.only(top: 24)),
+
+                  // Features List
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Features",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFeatureTile(
+                            context,
+                            "All Health Records",
+                            Icons.list_alt,
+                            Colors.blueGrey,
+                            ChangeNotifierProvider(
+                              create: (_) => ReadHealthRecordsChangeNotifier(healthConnector),
+                              child: ReadHealthRecordsPage(healthPlatform: healthConnector.healthPlatform),
+                            ),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Steps",
+                            Icons.directions_walk,
+                            Colors.orangeAccent,
+                            const StepPage(),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Sleep",
+                            Icons.bedtime,
+                            Colors.indigoAccent,
+                            const SleepPage(),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Hydration",
+                            Icons.water_drop,
+                            Colors.blueAccent,
+                            BlocProvider(
+                              create: (_) => HydrationBloc(),
+                              child: const HydrationPage(),
+                            ),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Nutrition",
+                            Icons.restaurant_menu,
+                            Colors.green,
+                            NutritionPage(userId: user?.id ?? ''),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Vitals & Mood",
+                            Icons.monitor_heart,
+                            Colors.redAccent,
+                            const VitalsPage(),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Workouts",
+                            Icons.fitness_center,
+                            Colors.teal,
+                            const WorkoutsPage(),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Meditation",
+                            Icons.self_improvement,
+                            Colors.purple,
+                            const MeditationPage(),
+                          ),
+                          _buildFeatureTile(
+                            context,
+                            "Streak",
+                            Icons.local_fire_department,
+                            Colors.deepOrange,
+                            StreakPage(userId: user?.id ?? ''),
+                          ),
+                          // Logout button
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                await Supabase.instance.client.auth.signOut();
+                                if (mounted) {
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (context) => const LoginPage(),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.logout,
+                                color: Colors.grey,
+                              ),
+                              label: const Text(
+                                "Log Out",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.grey.shade300),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  FeatureCard(
-                    title: 'Workouts',
-                    icon: Icons.fitness_center,
-                    color: Colors.teal,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const WorkoutsPage(),
-                        ),
-                      );
-                    },
-                  ),
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
                 ],
               ),
             ),
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  int _getTodaySteps(List<DailySteps> weeklySteps) {
+    if (weeklySteps.isEmpty) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todaySteps = weeklySteps.firstWhereOrNull(
+      (s) => DateTime(s.date.year, s.date.month, s.date.day+1) == today,
+    );
+    return todaySteps?.count ?? 0;
+  }
+
+  String _getTodaySleep(List<DailySleep> weeklySleep) {
+    if (weeklySleep.isEmpty) return "0";
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final todaySleep = weeklySleep.firstWhereOrNull((s) {
+      return DateTime(s.date.year, s.date.month, s.date.day) == today;
+    });
+
+    return todaySleep?.durationHours.toStringAsFixed(1) ?? "0";
+  }
+
+  int _getTodayWater(List<DailyHydration> weeklyHydration) {
+    if (weeklyHydration.isEmpty) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayHydration = weeklyHydration.firstWhereOrNull(
+      (h) => DateTime(h.date.year, h.date.month, h.date.day) == today,
+    );
+    return todayHydration?.volumeMl ?? 0;
+  }
+
+  int _getTodayWorkoutMins(List<DailyWorkout> weeklyWorkouts) {
+    if (weeklyWorkouts.isEmpty) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayWorkout = weeklyWorkouts.firstWhereOrNull(
+      (w) => DateTime(w.date.year, w.date.month, w.date.day) == today,
+    );
+    return todayWorkout?.durationMinutes ?? 0;
+  }
+
+  String _getTodayCalories(List<DailyCalories> weeklyCalories) {
+    if (weeklyCalories.isEmpty) return "0";
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayCals = weeklyCalories.firstWhereOrNull(
+      (c) => DateTime(c.date.year, c.date.month, c.date.day) == today,
+    );
+    return todayCals?.calories.toInt().toString() ?? "0";
+  }
+
+  int _getTodayMeditationMins(List<Map<String, dynamic>> meditationHistory) {
+    if (meditationHistory.isEmpty) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return meditationHistory
+        .where((m) {
+          final date = m['startTime'] as DateTime;
+          return DateTime(date.year, date.month, date.day) == today;
+        })
+        .fold(0, (sum, item) => sum + (item['durationMinutes'] as int));
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required String unit,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                "$title ($unit)",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureTile(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    Widget page,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 24),
         ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+        },
       ),
     );
   }

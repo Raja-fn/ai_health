@@ -1,9 +1,9 @@
 import 'package:health_connector/health_connector_internal.dart';
 
-/// Centralized collection of all text strings used throughout the application.
-///
-/// This class provides a single source of truth for all UI text, making it
-/// easier to maintain, localize, and update text content.
+
+
+
+
 abstract final class AppTexts {
   // region App Titles
   static const String healthConnectorToolbox = 'Health Connector Toolbox';
@@ -79,15 +79,23 @@ abstract final class AppTexts {
   static const String today = 'Today';
   static const String last7Days = 'Last 7 Days';
   static const String last30Days = 'Last 30 Days';
+  static const String vitals = "vitals";
 
   // endregion
 
-  /// Returns the localized label for a given [HealthDataType].
+  
   static String getLabel(HealthDataType type) {
     return switch (type) {
+      ForcedVitalCapacityDataType() => vitals,
       StepsDataType() => steps,
       WeightDataType() => weight,
-      HeightDataType() => height,
+      HeightDataType() || ElevationGainedDataType() => height,
+      PregnancyTestDataType() => "Pregnancy Test Data Type",
+      PeripheralPerfusionIndexDataType() =>
+        "Peripheral Perfusion Index Data Type",
+      ContraceptiveDataType() => "Contraceptive Data Type",
+      LactationDataType() => "Lactation Data Type",
+      PregnancyDataType() => "Pregnancy Data Type",
       BodyFatPercentageDataType() => bodyFatPercentage,
       LeanBodyMassDataType() => leanBodyMass,
       BodyTemperatureDataType() => bodyTemperature,
@@ -96,6 +104,8 @@ abstract final class AppTexts {
       BloodPressureDataType() => bloodPressure,
       SystolicBloodPressureDataType() => systolic,
       DiastolicBloodPressureDataType() => diastolic,
+      ProgesteroneTestDataType() => "Progesterone Test Data Type",
+      AlcoholicBeveragesDataType() || BloodAlcoholContentDataType() => alchohol,
       DistanceDataType() ||
       CrossCountrySkiingDistanceDataType() ||
       CyclingDistanceDataType() ||
@@ -169,6 +179,7 @@ abstract final class AppTexts {
       StairDescentSpeedDataType() => speed,
       PowerSeriesDataType() => powerSeries,
       CyclingPowerDataType() => cyclingPower,
+      RunningPowerDataType() => 'Running Power',
       ExerciseSessionDataType() => exerciseSession,
       MindfulnessSessionDataType() => mindfulnessSession,
       BoneMassDataType() => boneMass,
@@ -177,13 +188,14 @@ abstract final class AppTexts {
       BodyMassIndexDataType() => bodyMassIndex,
       WaistCircumferenceDataType() => waistCircumference,
       HeartRateVariabilitySDNNDataType() => heartRateVariabilitySDNN,
+      _ => type.toString().replaceAll('DataType', ''),
     };
   }
 
-  /// Returns the "Insert [label]" text.
+  
   static String getInsertText(String label) => '$insert $label';
 
-  /// Returns the "Insert [type]" text for a data type.
+  
   static String getInsertTextFor(HealthDataType type) {
     if (type is SpeedSeriesDataType ||
         type is WalkingSpeedDataType ||
@@ -195,26 +207,26 @@ abstract final class AppTexts {
     return getInsertText(getLabel(type));
   }
 
-  /// Returns the "Please enter [label]" text.
-  ///
-  /// Converts the label to lowercase effectively for sentence flow.
+  
+  
+  
   static String getPleaseEnterText(String label) =>
       '$pleaseEnter ${label.toLowerCase()}';
 
-  /// Returns the "Please enter [type]" text for a data type.
+  
   static String getPleaseEnterTextFor(HealthDataType type) =>
       getPleaseEnterText(getLabel(type));
 
-  /// Returns the "Please select [label]" text.
+  
   static String getPleaseSelectText(String label) =>
       '$pleaseSelect ${label.toLowerCase()}';
 
-  /// Returns the "Write Permission not granted for [label]" text.
+  
   static String getWritePermissionDeniedText(String label) =>
       'Write permission denied or not supported. '
       'Please grant write permission for ${label.toLowerCase()}.';
 
-  /// Returns the "Write Permission not granted for [type]" text.
+  
   static String getWritePermissionDeniedTextFor(HealthDataType type) {
     if (type is SpeedSeriesDataType ||
         type is WalkingSpeedDataType ||
@@ -226,10 +238,10 @@ abstract final class AppTexts {
     return getWritePermissionDeniedText(getLabel(type));
   }
 
-  /// Returns the "[label] ([unit])" text.
+  
   static String withUnit(String label, String unit) => '$label ($unit)';
 
-  /// Returns the "[label] Value ([unit])" text.
+  
   static String valueWithUnit(String label, String unit) =>
       '$label $value ($unit)';
 
@@ -356,6 +368,7 @@ abstract final class AppTexts {
   static const String waistCircumference = 'Waist Circumference';
   static const String bodyTemperature = 'Body Temperature';
   static const String basalBodyTemperature = 'Basal Body Temperature';
+  static const String alchohol = "Alchohol Levels";
   static const String boneMass = 'Bone Mass';
   static const String bodyWaterMass = 'Body Water Mass';
   static const String heartRateVariabilityRMSSD =

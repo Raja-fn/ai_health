@@ -9,10 +9,13 @@ import 'package:ai_health/features/nutrition/bloc/nutrition_bloc.dart';
 import 'package:ai_health/features/nutrition/repo/nutrition_repo.dart';
 import 'package:ai_health/features/permissions/bloc/permissions_bloc.dart';
 import 'package:ai_health/features/permissions/pages/permissions_page.dart';
+import 'package:ai_health/features/step/repo/step_repository.dart';
 import 'package:ai_health/features/streak/bloc/streak_bloc.dart';
 import 'package:ai_health/features/streak/repo/streak_repo.dart';
 import 'package:ai_health/features/step/bloc/step_bloc.dart';
 import 'package:ai_health/services/permissions_service.dart';
+import 'package:ai_health/src/health_connector_toolbox_app.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:health_connector/health_connector.dart';
@@ -64,11 +67,16 @@ class MyApp extends StatelessWidget {
                 PermissionsBloc(healthConnector: healthConnector),
           ),
           BlocProvider<NutritionBloc>(
-            create: (context) =>
-                NutritionBloc(repository: NutritionRepository()),
+            create: (context) => NutritionBloc(
+              repository: NutritionRepository(healthConnector: healthConnector),
+            ),
           ),
           BlocProvider(create: (context) => StreakBloc(StreakRepository())),
-          BlocProvider(create: (context) => StepBloc()),
+          BlocProvider(
+            create: (context) => StepBloc(
+              repository: StepRepository(healthConnector: healthConnector),
+            ),
+          ),
         ],
         child: MaterialApp(
           title: 'AI Health',
@@ -110,9 +118,9 @@ class _HomeRouterState extends State<_HomeRouter> {
           _permissionsChecked = true;
         });
       }
-      developer.log('Permissions check complete. All granted: $allGranted');
+      print('Permissions check complete. All granted: $allGranted');
     } catch (e) {
-      developer.log('Error checking permissions: $e', error: e);
+      print('Error checking permissions: $e');
       if (mounted) {
         setState(() {
           _permissionsChecked = true;
@@ -141,7 +149,7 @@ class _HomeRouterState extends State<_HomeRouter> {
 
                 if (_allPermissionsGranted) {
                   // All permissions granted, show home
-                  return const HomePage();
+                  return const HealthConnectorToolboxApp();
                 } else {
                   // Not all permissions granted, show permissions page
                   return const PermissionsPage();

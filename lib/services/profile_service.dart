@@ -7,18 +7,18 @@ class ProfileService {
   ProfileService({required SupabaseClient supabaseClient})
     : _supabaseClient = supabaseClient;
 
-  /// Check if user has completed their profile
-  /// Returns true if profile exists, false otherwise
+  
+  
   Future<bool> isProfileCompleted() async {
     try {
       final user = _supabaseClient.auth.currentUser;
 
-      developer.log(
+      print(
         'ProfileService.isProfileCompleted - Checking profile for user: ${user?.id}',
       );
 
       if (user == null) {
-        developer.log('ProfileService.isProfileCompleted - User is null');
+        print('ProfileService.isProfileCompleted - User is null');
         return false;
       }
 
@@ -29,35 +29,34 @@ class ProfileService {
           .maybeSingle();
 
       final isCompleted = response != null;
-      developer.log(
+      print(
         'ProfileService.isProfileCompleted - Profile completed: $isCompleted',
       );
 
       return isCompleted;
     } on PostgrestException catch (e) {
-      developer.log(
+      print(
         'ProfileService.isProfileCompleted - PostgrestException: ${e.message}',
-        error: e,
       );
       return false;
     } catch (e) {
-      developer.log('ProfileService.isProfileCompleted - Error: $e', error: e);
+      print('ProfileService.isProfileCompleted - Error: $e');
       return false;
     }
   }
 
-  /// Check if user has completed their survey
-  /// Returns true if survey exists, false otherwise
+  
+  
   Future<bool> isSurveyCompleted() async {
     try {
       final user = _supabaseClient.auth.currentUser;
 
-      developer.log(
+      print(
         'ProfileService.isSurveyCompleted - Checking survey for user: ${user?.id}',
       );
 
       if (user == null) {
-        developer.log('ProfileService.isSurveyCompleted - User is null');
+        print('ProfileService.isSurveyCompleted - User is null');
         return false;
       }
 
@@ -69,37 +68,36 @@ class ProfileService {
           .maybeSingle();
 
       final isCompleted = response != null;
-      developer.log(
+      print(
         'ProfileService.isSurveyCompleted - Survey completed: $isCompleted',
       );
 
       return isCompleted;
     } on PostgrestException catch (e) {
-      developer.log(
+      print(
         'ProfileService.isSurveyCompleted - PostgrestException: ${e.message}',
-        error: e,
       );
       return false;
     } catch (e) {
-      developer.log('ProfileService.isSurveyCompleted - Error: $e', error: e);
+      print('ProfileService.isSurveyCompleted - Error: $e');
       return false;
     }
   }
 
-  /// Check if user has completed both profile and survey
-  /// Returns true if both are completed, false otherwise
+  
+  
   Future<bool> isBothCompleted() async {
     try {
       final profileCompleted = await isProfileCompleted();
       final surveyCompleted = await isSurveyCompleted();
 
-      developer.log(
+      print(
         'ProfileService.isBothCompleted - Profile: $profileCompleted, Survey: $surveyCompleted',
       );
 
       return profileCompleted && surveyCompleted;
     } catch (e) {
-      developer.log('ProfileService.isBothCompleted - Error: $e', error: e);
+      print('ProfileService.isBothCompleted - Error: $e');
       return false;
     }
   }
